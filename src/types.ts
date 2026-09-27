@@ -1,5 +1,58 @@
 export type ProviderId = 'openai' | 'anthropic' | 'gemini' | 'xai';
 
+export interface LLMJudgeEvaluation {
+  status: 'evaluating' | 'done' | 'failed';
+  overallScore?: number; // 0-100
+  accuracyScore?: number; // 0-100
+  completenessScore?: number; // 0-100
+  reasoningScore?: number; // 0-100
+  verdict?: 'Exceptional' | 'Accurate' | 'Minor Inaccuracies' | 'Flawed / Hallucination';
+  critique?: string;
+  strengths?: string[];
+  weaknesses?: string[];
+  judgeModel: string;
+  judgeProvider: ProviderId;
+  evaluatedAt: number;
+  error?: string;
+}
+
+export interface CouncilMember {
+  provider: ProviderId;
+  model: string;
+  displayName: string;
+  company: string;
+}
+
+export interface CouncilRoundContribution {
+  provider: ProviderId;
+  model: string;
+  company: string;
+  content: string;
+}
+
+export interface CouncilRound {
+  roundNumber: number;
+  title: string;
+  description: string;
+  contributions: CouncilRoundContribution[];
+}
+
+export interface AICouncilSession {
+  status: 'debating' | 'done' | 'failed';
+  currentStage: string;
+  participants: CouncilMember[];
+  rounds: CouncilRound[];
+  consensus?: {
+    synthesis: string;
+    agreements: string[];
+    disagreements: string[];
+    verdict: string;
+    actionItems?: string[];
+  };
+  error?: string;
+  completedAt?: number;
+}
+
 export interface ChatMessage {
   id: string;
   role: 'user' | 'assistant';
@@ -12,6 +65,8 @@ export interface ChatMessage {
   usedEmails?: string[]; // email subjects/senders used
   error?: { title: string; detail: string; canRetry: boolean };
   draft?: { to: string; subject: string; body: string }; // email draft card
+  judge?: LLMJudgeEvaluation; // LLM as a Judge evaluation
+  council?: AICouncilSession; // AI Council debate session
   createdAt: number;
 }
 
@@ -24,6 +79,8 @@ export interface Chat {
   systemPrompt: string;
   webSearch: boolean;
   gmailAccess?: boolean; // Let LLM access Gmail inbox for this chat
+  autoJudge?: boolean; // Automatically run LLM judge on responses
+  councilMode?: boolean; // Convene multi-model AI council on next send
   createdAt: number;
   updatedAt: number;
 }
@@ -68,5 +125,6 @@ export interface Settings {
   gmail: { email: string; appPassword: string; status: 'unset' | 'checking' | 'ok' | 'failed'; message?: string; demoInboxEnabled?: boolean };
   searchModel: string; // gemini model used for backup web search (default gemini-2.5-flash)
   maxOutputTokens: number; // default 4096
+  autoJudge?: boolean; // default false (evaluates every response with another model)
   theme: 'light' | 'dark'; // default: follow system on first load
 }

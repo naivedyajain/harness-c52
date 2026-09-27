@@ -996,6 +996,31 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 </p>
               </div>
 
+              {/* Auto-Judge responses toggle */}
+              <div className="pt-2 border-t border-slate-100 dark:border-slate-800">
+                <label className="flex items-center justify-between cursor-pointer">
+                  <div>
+                    <span className="text-xs font-medium text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
+                      <span>Auto-Judge every response</span>
+                      <span className="px-1.5 py-0.2 rounded text-[10px] font-semibold bg-purple-100 dark:bg-purple-950 text-purple-700 dark:text-purple-300">
+                        New
+                      </span>
+                    </span>
+                    <p className="text-[11px] text-slate-400">
+                      Uses an opposing AI model to evaluate factual accuracy, completeness, and hallucinations.
+                    </p>
+                  </div>
+                  <input
+                    type="checkbox"
+                    checked={Boolean(settings.autoJudge)}
+                    onChange={(e) =>
+                      onUpdateSettings({ ...settings, autoJudge: e.target.checked })
+                    }
+                    className="rounded text-indigo-600 focus:ring-indigo-500 cursor-pointer h-4 w-4"
+                  />
+                </label>
+              </div>
+
               {/* Keep chats toggle */}
               <div className="pt-2 border-t border-slate-100 dark:border-slate-800">
                 <label className="flex items-center justify-between cursor-pointer">

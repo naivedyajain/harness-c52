@@ -15,6 +15,8 @@ import {
 import { ChatMessage, Settings } from '../types';
 import { PROVIDER_CONFIG } from './ModelPicker';
 import { DraftCard } from './DraftCard';
+import { JudgeBadge } from './JudgeBadge';
+import { AICouncilCard } from './AICouncilCard';
 
 interface MessageProps {
   message: ChatMessage;
@@ -24,6 +26,8 @@ interface MessageProps {
   onFollowUp: (instruction: string) => void;
   onToast: (msg: string, type?: 'success' | 'error' | 'info') => void;
   attachedEmails?: { fromEmail: string; source: 'paste' | 'gmail'; messageId?: string; references?: string }[];
+  onEvaluateJudge?: (messageId: string) => void;
+  isEvaluatingJudge?: boolean;
 }
 
 function extractDomain(url: string): string {
@@ -43,6 +47,8 @@ export const Message: React.FC<MessageProps> = ({
   onFollowUp,
   onToast,
   attachedEmails,
+  onEvaluateJudge,
+  isEvaluatingJudge,
 }) => {
   const [copied, setCopied] = useState(false);
 
@@ -282,6 +288,20 @@ export const Message: React.FC<MessageProps> = ({
             </a>
           ))}
         </div>
+      )}
+
+      {/* AI Council Debate Session */}
+      {message.council && (
+        <AICouncilCard council={message.council} onToast={onToast} />
+      )}
+
+      {/* LLM as a Judge Evaluation */}
+      {!isUser && !message.error && !message.council && (
+        <JudgeBadge
+          evaluation={message.judge}
+          onEvaluate={() => onEvaluateJudge?.(message.id)}
+          isLoading={isEvaluatingJudge}
+        />
       )}
     </div>
   );

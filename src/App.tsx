@@ -6,6 +6,8 @@ import {
   UploadedDoc,
   EmailItem,
   ProviderId,
+  LLMJudgeEvaluation,
+  AICouncilSession,
 } from './types';
 import {
   store,
@@ -15,6 +17,8 @@ import {
 } from './lib/storage';
 import { friendly } from './lib/errors';
 import { chat, listModels } from './lib/providers';
+import { evaluateResponseWithJudge } from './lib/judge';
+import { runAICouncilSession } from './lib/council';
 import { performWebSearch, SearchResult } from './lib/search';
 import { parseDocument, retrieveRelevantDocContext } from './lib/docs';
 import { queryGmailInbox, getDemoInbox } from './lib/gmail';
@@ -128,6 +132,8 @@ export function AppContent() {
   const [settingsInitialTab, setSettingsInitialTab] = useState<'keys' | 'gmail' | 'preferences'>('keys');
   const [isModelPickerOpen, setIsModelPickerOpen] = useState(false);
   const [quizModalOpen, setQuizModalOpen] = useState(false);
+  const [serverGeminiKey, setServerGeminiKey] = useState<string | null>(null);
+  const [evaluatingJudgeId, setEvaluatingJudgeId] = useState<string | null>(null);
 
   // 7. Toasts
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
@@ -176,6 +182,7 @@ export function AppContent() {
       .then((res) => res.json())
       .then((data) => {
         if (data.hasServerGemini && data.geminiApiKey) {
+          setServerGeminiKey(data.geminiApiKey);
           setSettings((prev) => {
             if (!prev.keys.gemini.value) {
               return {
@@ -364,6 +371,80 @@ export function AppContent() {
     }
   };
 
+  // Toggle Auto-Judge on responses
+  const handleToggleAutoJudge = () => {
+    const nextVal = !settings.autoJudge;
+    setSettings((prev) => ({ ...prev, autoJudge: nextVal }));
+    addToast(
+      nextVal
+        ? 'Auto-Judge enabled: Answers will be independently evaluated by a peer model'
+        : 'Auto-Judge disabled',
+      'info'
+    );
+  };
+
+  // Toggle AI Council multi-model debate
+  const handleToggleCouncilMode = () => {
+    const nextVal = !activeChat.councilMode;
+    setChats((prev) =>
+      prev.map((c) =>
+        c.id === activeChat.id ? { ...c, councilMode: nextVal, updatedAt: Date.now() } : c
+      )
+    );
+    addToast(
+      nextVal
+        ? 'AI Council Mode ON: Models from Google, OpenAI, Claude & Grok will debate'
+        : 'AI Council Mode disabled',
+      'info'
+    );
+  };
+
+  // Evaluate an existing assistant response using an opposing judge model
+  const handleEvaluateJudge = async (messageId: string) => {
+    const msg = activeChat.messages.find((m) => m.id === messageId);
+    if (!msg || msg.role !== 'assistant') return;
+
+    const msgIdx = activeChat.messages.findIndex((m) => m.id === messageId);
+    const userPromptMsg = activeChat.messages
+      .slice(0, msgIdx)
+      .reverse()
+      .find((m) => m.role === 'user');
+    const userPrompt = userPromptMsg?.content || 'Evaluate this assistant response.';
+
+    setEvaluatingJudgeId(messageId);
+    try {
+      const evaluation = await evaluateResponseWithJudge({
+        prompt: userPrompt,
+        response: msg.content,
+        originalProvider: msg.provider || 'gemini',
+        originalModel: msg.model || 'gemini-2.5-flash',
+        settings,
+        serverGeminiKey,
+      });
+
+      setChats((prev) =>
+        prev.map((c) =>
+          c.id === activeChat.id
+            ? {
+                ...c,
+                messages: c.messages.map((m) =>
+                  m.id === messageId ? { ...m, judge: evaluation } : m
+                ),
+              }
+            : c
+        )
+      );
+      addToast(
+        `Judge score: ${evaluation.overallScore}/100 (${evaluation.verdict}) by ${evaluation.judgeModel}`,
+        'success'
+      );
+    } catch (err: any) {
+      addToast(`Judge evaluation failed: ${err.message || 'Error'}`, 'error');
+    } finally {
+      setEvaluatingJudgeId(null);
+    }
+  };
+
   // Change system prompt on active chat
   const handleChangeSystemPrompt = (prompt: string) => {
     setChats((prev) =>
@@ -477,6 +558,146 @@ export function AppContent() {
 
     // Guard 1: Empty input and no emails attached
     if (!messageContent && activeEmails.length === 0) {
+      return;
+    }
+
+    // AI Council Mode: Convene multi-model debate across company models
+    if (activeChat.councilMode) {
+      if (customPrompt === undefined) {
+        setInput('');
+      }
+      setGuardError(null);
+
+      const userMsg: ChatMessage = {
+        id: `msg-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+        role: 'user',
+        content: messageContent,
+        createdAt: Date.now(),
+      };
+
+      const councilMsgId = `council-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+      const initialCouncilSession: AICouncilSession = {
+        status: 'debating',
+        currentStage: 'Convening Council across Google, OpenAI, Anthropic & xAI...',
+        participants: [],
+        rounds: [],
+      };
+
+      const councilAssistantMsg: ChatMessage = {
+        id: councilMsgId,
+        role: 'assistant',
+        content: 'AI Council chamber is in session...',
+        council: initialCouncilSession,
+        createdAt: Date.now() + 1,
+      };
+
+      const updatedMessages = [...activeChat.messages, userMsg, councilAssistantMsg];
+      let updatedTitle = activeChat.title;
+      if (updatedTitle === 'New chat') {
+        updatedTitle = `Council: ${messageContent.slice(0, 30).replace(/\n/g, ' ')}`;
+      }
+
+      setChats((prev) =>
+        prev.map((c) =>
+          c.id === activeChat.id
+            ? {
+                ...c,
+                title: updatedTitle,
+                messages: updatedMessages,
+                updatedAt: Date.now(),
+              }
+            : c
+        )
+      );
+
+      setIsLoading(true);
+      abortControllerRef.current = new AbortController();
+      const currentSignal = abortControllerRef.current.signal;
+
+      // Extract doc context if any
+      const { formattedContext: docContext } = retrieveRelevantDocContext(
+        activeDocs,
+        messageContent
+      );
+
+      try {
+        const finalSession = await runAICouncilSession({
+          prompt: messageContent,
+          context: docContext,
+          settings,
+          serverGeminiKey,
+          signal: currentSignal,
+          onProgress: (progressSession) => {
+            setChats((prev) =>
+              prev.map((c) =>
+                c.id === activeChat.id
+                  ? {
+                      ...c,
+                      messages: c.messages.map((m) =>
+                        m.id === councilMsgId
+                          ? { ...m, council: { ...progressSession } }
+                          : m
+                      ),
+                    }
+                  : c
+              )
+            );
+          },
+        });
+
+        setChats((prev) =>
+          prev.map((c) =>
+            c.id === activeChat.id
+              ? {
+                  ...c,
+                  messages: c.messages.map((m) =>
+                    m.id === councilMsgId
+                      ? {
+                          ...m,
+                          content:
+                            finalSession.consensus?.verdict ||
+                            'Council debate concluded & consensus reached.',
+                          council: finalSession,
+                        }
+                      : m
+                  ),
+                }
+              : c
+          )
+        );
+        addToast('AI Council debate concluded & consensus reached!', 'success');
+      } catch (councilErr: any) {
+        if (!currentSignal.aborted) {
+          addToast(`AI Council error: ${councilErr.message || 'Error'}`, 'error');
+          setChats((prev) =>
+            prev.map((c) =>
+              c.id === activeChat.id
+                ? {
+                    ...c,
+                    messages: c.messages.map((m) =>
+                      m.id === councilMsgId
+                        ? {
+                            ...m,
+                            content: `Council debate failed: ${councilErr.message || 'Error'}`,
+                            council: {
+                              status: 'failed',
+                              currentStage: 'Failed',
+                              participants: [],
+                              rounds: [],
+                              error: councilErr.message,
+                            },
+                          }
+                        : m
+                    ),
+                  }
+                : c
+            )
+          );
+        }
+      } finally {
+        setIsLoading(false);
+        abortControllerRef.current = null;
+      }
       return;
     }
 
@@ -682,6 +903,36 @@ export function AppContent() {
             : c
         )
       );
+
+      // Trigger Auto-Judge evaluation in background if enabled
+      if (settings.autoJudge) {
+        evaluateResponseWithJudge({
+          prompt: messageContent,
+          response: responseText,
+          context: [docContext, webSearchAmberNote].filter(Boolean).join('\n\n'),
+          originalProvider: currentProvider,
+          originalModel: currentModel,
+          settings,
+          serverGeminiKey,
+        })
+          .then((evaluation) => {
+            setChats((prev) =>
+              prev.map((c) =>
+                c.id === activeChat.id
+                  ? {
+                      ...c,
+                      messages: c.messages.map((m) =>
+                        m.id === assistantMsg.id ? { ...m, judge: evaluation } : m
+                      ),
+                    }
+                  : c
+              )
+            );
+          })
+          .catch((judgeErr) => {
+            console.warn('Auto-judge evaluation error:', judgeErr);
+          });
+      }
     } catch (err: any) {
       if (currentSignal.aborted || err?.kind === 'cancelled') {
         const stoppedMsg: ChatMessage = {
@@ -809,6 +1060,8 @@ export function AppContent() {
           }
           isModelPickerOpen={isModelPickerOpen}
           onCloseModelPicker={() => setIsModelPickerOpen(false)}
+          councilActive={Boolean(activeChat.councilMode)}
+          onToggleCouncil={handleToggleCouncilMode}
         />
 
         {/* Content area: Thread or Empty State */}
@@ -835,6 +1088,8 @@ export function AppContent() {
             onToast={addToast}
             onDropFiles={handleUploadFiles}
             attachedEmails={activeEmails}
+            onEvaluateJudge={handleEvaluateJudge}
+            evaluatingJudgeId={evaluatingJudgeId}
           />
         )}
 
@@ -849,6 +1104,10 @@ export function AppContent() {
           onToggleWebSearch={handleToggleWebSearch}
           gmailAccess={Boolean(activeChat.gmailAccess)}
           onToggleGmailAccess={handleToggleGmailAccess}
+          autoJudge={Boolean(settings.autoJudge)}
+          onToggleAutoJudge={handleToggleAutoJudge}
+          councilMode={Boolean(activeChat.councilMode)}
+          onToggleCouncilMode={handleToggleCouncilMode}
           docs={activeDocs}
           onRemoveDoc={handleDeleteDoc}
           emails={activeEmails}

@@ -10,6 +10,8 @@ import {
   SlidersHorizontal,
   HelpCircle,
   Inbox,
+  Scale,
+  Users,
 } from 'lucide-react';
 import { UploadedDoc, EmailItem, Settings } from '../types';
 import { getFirstSearchEngineName } from '../lib/search';
@@ -24,6 +26,10 @@ interface InputBarProps {
   onToggleWebSearch: () => void;
   gmailAccess?: boolean;
   onToggleGmailAccess?: () => void;
+  autoJudge?: boolean;
+  onToggleAutoJudge?: () => void;
+  councilMode?: boolean;
+  onToggleCouncilMode?: () => void;
   docs: UploadedDoc[];
   onRemoveDoc: (id: string) => void;
   emails: EmailItem[];
@@ -66,6 +72,10 @@ export const InputBar: React.FC<InputBarProps> = ({
   onToggleWebSearch,
   gmailAccess,
   onToggleGmailAccess,
+  autoJudge,
+  onToggleAutoJudge,
+  councilMode,
+  onToggleCouncilMode,
   docs,
   onRemoveDoc,
   emails,
@@ -294,6 +304,8 @@ export const InputBar: React.FC<InputBarProps> = ({
           placeholder={
             !isKeyConfigured
               ? 'Add an API key in Settings to start…'
+              : councilMode
+              ? 'Convene the AI Council (Models from Google, OpenAI, Claude & Grok will debate)…'
               : 'Ask a question, or analyze attached docs & emails…'
           }
           rows={1}
@@ -303,7 +315,7 @@ export const InputBar: React.FC<InputBarProps> = ({
         {/* Toolbar under textarea */}
         <div className="flex items-center justify-between px-3 pb-2.5 pt-1">
           {/* Action Icons */}
-          <div className="flex items-center gap-1">
+          <div className="flex items-center gap-1 flex-wrap">
             {/* Paperclip / Documents */}
             <button
               onClick={onOpenDocsDrawer}
@@ -373,6 +385,64 @@ export const InputBar: React.FC<InputBarProps> = ({
               </span>
               {gmailAccess && (
                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+              )}
+            </button>
+
+            {/* AI Council Button (Multi-company model debate) */}
+            <button
+              onClick={() => {
+                if (onToggleCouncilMode) {
+                  onToggleCouncilMode();
+                }
+              }}
+              type="button"
+              className={`relative flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
+                councilMode
+                  ? 'text-indigo-700 dark:text-indigo-200 bg-gradient-to-r from-indigo-100 to-purple-100 dark:from-indigo-950 dark:to-purple-950 border border-indigo-300 dark:border-indigo-700 shadow-2xs'
+                  : 'text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800'
+              }`}
+              title={
+                councilMode
+                  ? 'AI Council Active: Models from Google, OpenAI, Anthropic & xAI will debate'
+                  : 'AI Council: Click to have 2-4 leading company models debate your prompt'
+              }
+              aria-label="Toggle AI Council multi-model debate"
+            >
+              <Users className="w-3.5 h-3.5 shrink-0" />
+              <span className="text-xs">
+                {councilMode ? 'Council: ON' : 'Council'}
+              </span>
+              {councilMode && (
+                <span className="w-1.5 h-1.5 rounded-full bg-indigo-500 animate-pulse" />
+              )}
+            </button>
+
+            {/* Auto-Judge Button */}
+            <button
+              onClick={() => {
+                if (onToggleAutoJudge) {
+                  onToggleAutoJudge();
+                }
+              }}
+              type="button"
+              className={`relative flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
+                autoJudge
+                  ? 'text-purple-700 dark:text-purple-300 bg-purple-50 dark:bg-purple-950/70 border border-purple-200 dark:border-purple-800 shadow-2xs'
+                  : 'text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800'
+              }`}
+              title={
+                autoJudge
+                  ? 'Auto-Judge Active: Every answer is independently evaluated by a peer model'
+                  : 'LLM Judge: Automatically evaluate accuracy of responses with another model'
+              }
+              aria-label="Toggle LLM as a Judge"
+            >
+              <Scale className="w-3.5 h-3.5 shrink-0" />
+              <span className="text-xs">
+                {autoJudge ? 'Judge: ON' : 'Judge'}
+              </span>
+              {autoJudge && (
+                <span className="w-1.5 h-1.5 rounded-full bg-purple-500 animate-pulse" />
               )}
             </button>
           </div>

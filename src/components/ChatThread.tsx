@@ -17,6 +17,8 @@ interface ChatThreadProps {
   onToast: (msg: string, type?: 'success' | 'error' | 'info') => void;
   onDropFiles: (files: FileList | File[]) => void;
   attachedEmails?: EmailItem[];
+  onEvaluateJudge?: (messageId: string) => void;
+  evaluatingJudgeId?: string | null;
 }
 
 export const ChatThread: React.FC<ChatThreadProps> = ({
@@ -32,6 +34,8 @@ export const ChatThread: React.FC<ChatThreadProps> = ({
   onToast,
   onDropFiles,
   attachedEmails,
+  onEvaluateJudge,
+  evaluatingJudgeId,
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -111,6 +115,8 @@ export const ChatThread: React.FC<ChatThreadProps> = ({
               onFollowUp={onFollowUp}
               onToast={onToast}
               attachedEmails={attachedEmails}
+              onEvaluateJudge={onEvaluateJudge}
+              isEvaluatingJudge={evaluatingJudgeId === message.id}
             />
           ))}
 

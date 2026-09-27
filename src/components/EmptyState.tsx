@@ -145,6 +145,17 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
             <button
               onClick={() =>
                 onSamplePrompt(
+                  'Convene the AI Council to debate: What are the biggest architecture trade-offs between a monolithic backend vs event-driven microservices for a high-traffic AI platform?'
+                )
+              }
+              className="p-2.5 rounded-xl border border-indigo-200 dark:border-indigo-800/60 bg-gradient-to-r from-indigo-50/70 to-purple-50/70 dark:from-indigo-950/40 dark:to-purple-950/40 hover:from-indigo-100 hover:to-purple-100 text-xs text-indigo-950 dark:text-indigo-200 transition-colors cursor-pointer flex items-center justify-between"
+            >
+              <span className="truncate font-medium">🏛️ AI Council: Architecture Debate</span>
+              <ArrowRight className="w-3 h-3 text-indigo-500 shrink-0 ml-1" />
+            </button>
+            <button
+              onClick={() =>
+                onSamplePrompt(
                   'I have a meeting quiz with engineering. Please drill me on this system: ask me a challenging technical question about CORS proxying, IMAP sequence fetching vs UID search, model tier grading (Low/Medium/High), and zero-retention BYOK security!'
                 )
               }
@@ -165,17 +176,14 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
               <ArrowRight className="w-3 h-3 text-slate-400 shrink-0 ml-1" />
             </button>
             <button
-              onClick={() => onSamplePrompt('Summarize the top global tech developments this week.')}
+              onClick={() =>
+                onSamplePrompt(
+                  'Compare OpenAI GPT-4o, Claude 3.5 Sonnet, and Gemini 2.5 Pro across reasoning benchmarks, latency, and context window limits.'
+                )
+              }
               className="p-2.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-white/60 dark:bg-slate-900/60 hover:bg-slate-100 dark:hover:bg-slate-800/80 text-xs text-slate-700 dark:text-slate-300 transition-colors cursor-pointer flex items-center justify-between"
             >
-              <span className="truncate">🌐 Top global developments</span>
-              <ArrowRight className="w-3 h-3 text-slate-400 shrink-0 ml-1" />
-            </button>
-            <button
-              onClick={() => onSamplePrompt('Compare OpenAI GPT-4o, Claude 3.5 Sonnet, and Gemini 2.5 Flash capabilities and pricing.')}
-              className="p-2.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-white/60 dark:bg-slate-900/60 hover:bg-slate-100 dark:hover:bg-slate-800/80 text-xs text-slate-700 dark:text-slate-300 transition-colors cursor-pointer flex items-center justify-between"
-            >
-              <span className="truncate">⚡ Compare model tiers & latency</span>
+              <span className="truncate">⚖️ Compare frontier reasoning models</span>
               <ArrowRight className="w-3 h-3 text-slate-400 shrink-0 ml-1" />
             </button>
           </div>

@@ -1,5 +1,5 @@
 import React from 'react';
-import { PanelLeft, Sun, Moon, Settings as SettingsIcon, Award } from 'lucide-react';
+import { PanelLeft, Sun, Moon, Settings as SettingsIcon, Award, Users } from 'lucide-react';
 import { ModelPicker } from './ModelPicker';
 import { ProviderId, KeyState } from '../types';
 
@@ -16,6 +16,8 @@ interface TopBarProps {
   onToggleTheme: () => void;
   isModelPickerOpen?: boolean;
   onCloseModelPicker?: () => void;
+  councilActive?: boolean;
+  onToggleCouncil?: () => void;
 }
 
 export const TopBar: React.FC<TopBarProps> = ({
@@ -31,6 +33,8 @@ export const TopBar: React.FC<TopBarProps> = ({
   onToggleTheme,
   isModelPickerOpen,
   onCloseModelPicker,
+  councilActive,
+  onToggleCouncil,
 }) => {
   return (
     <header className="h-14 border-b border-slate-200 dark:border-slate-800 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md px-4 flex items-center justify-between shrink-0 z-20">
@@ -66,6 +70,24 @@ export const TopBar: React.FC<TopBarProps> = ({
       </div>
 
       <div className="flex items-center gap-1 sm:gap-2">
+        {/* AI Council Multi-Model Debate */}
+        {onToggleCouncil && (
+          <button
+            onClick={onToggleCouncil}
+            className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+              councilActive
+                ? 'text-indigo-700 dark:text-indigo-200 bg-gradient-to-r from-indigo-100 to-purple-100 dark:from-indigo-950 dark:to-purple-950 border border-indigo-300 dark:border-indigo-700 shadow-2xs'
+                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800'
+            }`}
+            title="Convene AI Council across Google, OpenAI, Anthropic & xAI"
+          >
+            <Users className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400 shrink-0" />
+            <span className="hidden md:inline">
+              {councilActive ? 'Council: Active' : 'AI Council'}
+            </span>
+          </button>
+        )}
+
         {/* Meeting Quiz Prep Button */}
         <button
           onClick={onOpenQuiz}
