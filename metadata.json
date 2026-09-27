@@ -1,0 +1,6 @@
+{
+  "name": "Harness",
+  "description": "Multi-model AI workspace for OpenAI and Gemini with document analysis and email drafting using your own keys.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
