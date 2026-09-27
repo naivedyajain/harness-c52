@@ -435,11 +435,34 @@ export function AppContent() {
         )
       );
       addToast(
-        `Judge score: ${evaluation.overallScore}/100 (${evaluation.verdict}) by ${evaluation.judgeModel}`,
+        `Grok Judge score: ${evaluation.overallScore}/100 (${evaluation.verdict}) by ${evaluation.judgeModel}`,
         'success'
       );
     } catch (err: any) {
       addToast(`Judge evaluation failed: ${err.message || 'Error'}`, 'error');
+      setChats((prev) =>
+        prev.map((c) =>
+          c.id === activeChat.id
+            ? {
+                ...c,
+                messages: c.messages.map((m) =>
+                  m.id === messageId
+                    ? {
+                        ...m,
+                        judge: {
+                          status: 'failed',
+                          error: err.message || 'Evaluation failed',
+                          judgeModel: 'grok-2',
+                          judgeProvider: 'xai',
+                          evaluatedAt: Date.now(),
+                        },
+                      }
+                    : m
+                ),
+              }
+            : c
+        )
+      );
     } finally {
       setEvaluatingJudgeId(null);
     }
@@ -635,7 +658,7 @@ export function AppContent() {
                       ...c,
                       messages: c.messages.map((m) =>
                         m.id === councilMsgId
-                          ? { ...m, council: { ...progressSession } }
+                          ? { ...m, council: { ...progressSession, rounds: [...progressSession.rounds] } }
                           : m
                       ),
                     }

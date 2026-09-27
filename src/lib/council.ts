@@ -10,18 +10,11 @@ export interface CouncilSessionArgs {
   signal?: AbortSignal;
 }
 
-const COMPANY_NAMES: Record<ProviderId, string> = {
-  gemini: 'Google Gemini',
-  openai: 'OpenAI GPT',
-  anthropic: 'Anthropic Claude',
-  xai: 'xAI Grok',
-};
-
 const DEFAULT_MODELS: Record<ProviderId, string> = {
+  xai: 'grok-2',
   gemini: 'gemini-2.5-pro',
   openai: 'gpt-4o',
   anthropic: 'claude-3-5-sonnet-20241022',
-  xai: 'grok-2',
 };
 
 /**
@@ -33,11 +26,31 @@ export function getEligibleCouncilMembers(
 ): { member: CouncilMember; apiKey: string }[] {
   const list: { member: CouncilMember; apiKey: string }[] = [];
   const keys = settings.keys;
-  const effectiveGeminiKey = keys.gemini?.value || serverGeminiKey || '';
+  const effectiveGeminiKey = (keys.gemini?.value || serverGeminiKey || '').trim();
+  const xaiKey = (keys.xai?.value || '').trim();
+  const openaiKey = (keys.openai?.value || '').trim();
+  const anthropicKey = (keys.anthropic?.value || '').trim();
 
-  // 1. Google Gemini
-  if (effectiveGeminiKey || keys.gemini?.status === 'ok') {
-    const model = (keys.gemini?.models || []).find((m) => m.includes('2.5-pro') || m.includes('2.5-flash')) || DEFAULT_MODELS.gemini;
+  // 1. xAI Grok (Frontier & critical reasoning)
+  if (xaiKey.length > 0) {
+    const model =
+      (keys.xai?.models || []).find((m) => m === 'grok-2' || m.includes('grok-2') || m.includes('grok-3')) ||
+      DEFAULT_MODELS.xai;
+    list.push({
+      member: {
+        provider: 'xai',
+        model,
+        displayName: 'Grok 2',
+        company: 'xAI',
+      },
+      apiKey: xaiKey,
+    });
+  }
+
+  // 2. Google DeepMind Gemini
+  if (effectiveGeminiKey.length > 0) {
+    const model =
+      (keys.gemini?.models || []).find((m) => m.includes('2.5-pro')) || DEFAULT_MODELS.gemini;
     list.push({
       member: {
         provider: 'gemini',
@@ -49,9 +62,11 @@ export function getEligibleCouncilMembers(
     });
   }
 
-  // 2. OpenAI
-  if (keys.openai?.value && keys.openai.status === 'ok') {
-    const model = (keys.openai.models || []).find((m) => m.startsWith('gpt-4o') || m === 'gpt-4o') || DEFAULT_MODELS.openai;
+  // 3. OpenAI GPT-4o
+  if (openaiKey.length > 0) {
+    const model =
+      (keys.openai?.models || []).find((m) => m.startsWith('gpt-4o') || m === 'gpt-4o') ||
+      DEFAULT_MODELS.openai;
     list.push({
       member: {
         provider: 'openai',
@@ -59,13 +74,15 @@ export function getEligibleCouncilMembers(
         displayName: 'GPT-4o',
         company: 'OpenAI',
       },
-      apiKey: keys.openai.value,
+      apiKey: openaiKey,
     });
   }
 
-  // 3. Anthropic
-  if (keys.anthropic?.value && keys.anthropic.status === 'ok') {
-    const model = (keys.anthropic.models || []).find((m) => m.includes('sonnet') || m.includes('claude-3')) || DEFAULT_MODELS.anthropic;
+  // 4. Anthropic Claude
+  if (anthropicKey.length > 0) {
+    const model =
+      (keys.anthropic?.models || []).find((m) => m.includes('sonnet') || m.includes('claude-3')) ||
+      DEFAULT_MODELS.anthropic;
     list.push({
       member: {
         provider: 'anthropic',
@@ -73,33 +90,58 @@ export function getEligibleCouncilMembers(
         displayName: 'Claude 3.5 Sonnet',
         company: 'Anthropic',
       },
-      apiKey: keys.anthropic.value,
+      apiKey: anthropicKey,
     });
   }
 
-  // 4. xAI
-  if (keys.xai?.value && keys.xai.status === 'ok') {
-    const model = (keys.xai.models || []).find((m) => m.includes('grok-2') || m.includes('grok-3')) || DEFAULT_MODELS.xai;
+  // If user only has xAI configured: supplement with distinct Grok architectures
+  if (list.length === 1 && xaiKey.length > 0) {
     list.push({
       member: {
         provider: 'xai',
-        model,
-        displayName: 'Grok 2',
-        company: 'xAI',
+        model: 'grok-2-mini',
+        displayName: 'Grok 2 Mini',
+        company: 'xAI (Concise & Fast)',
       },
-      apiKey: keys.xai.value,
+      apiKey: xaiKey,
     });
-  }
-
-  // If fewer than 2 distinct companies, supplement using diverse model tiers if possible
-  if (list.length < 2 && effectiveGeminiKey) {
-    // Add Gemini Flash as a distinct pragmatic voice if Gemini Pro was added
+    list.push({
+      member: {
+        provider: 'xai',
+        model: 'grok-beta',
+        displayName: 'Grok Adversarial',
+        company: 'xAI (Critical Stance)',
+      },
+      apiKey: xaiKey,
+    });
+  } else if (list.length === 1 && effectiveGeminiKey.length > 0) {
+    // If only Gemini is configured
     list.push({
       member: {
         provider: 'gemini',
         model: 'gemini-2.5-flash',
         displayName: 'Gemini 2.5 Flash',
         company: 'Google (Speed & Directness)',
+      },
+      apiKey: effectiveGeminiKey,
+    });
+    list.push({
+      member: {
+        provider: 'gemini',
+        model: 'gemini-1.5-pro',
+        displayName: 'Gemini Architecture',
+        company: 'Google (Analytical)',
+      },
+      apiKey: effectiveGeminiKey,
+    });
+  } else if (list.length === 2 && effectiveGeminiKey.length > 0) {
+    // If 2 models (e.g. Grok + Gemini), add Flash for a 3rd distinct voice
+    list.push({
+      member: {
+        provider: 'gemini',
+        model: 'gemini-2.5-flash',
+        displayName: 'Gemini 2.5 Flash',
+        company: 'Google (Pragmatic Voice)',
       },
       apiKey: effectiveGeminiKey,
     });
@@ -113,28 +155,28 @@ export async function runAICouncilSession(args: CouncilSessionArgs): Promise<AIC
 
   const eligible = getEligibleCouncilMembers(settings, serverGeminiKey);
   if (eligible.length === 0) {
-    throw new Error('Please configure at least one API key in Settings to convene the AI Council.');
+    throw new Error('Please enter your xAI Grok or Google Gemini API key in Settings to convene the AI Council.');
   }
 
   const session: AICouncilSession = {
     status: 'debating',
-    currentStage: 'Convening Council Members...',
+    currentStage: 'Convening AI Council across models...',
     participants: eligible.map((e) => e.member),
     rounds: [],
   };
 
-  onProgress?.(session);
+  onProgress?.({ ...session, rounds: [...session.rounds] });
 
   // -------------------------------------------------------------
   // ROUND 1: Initial Independent Perspectives
   // -------------------------------------------------------------
   session.currentStage = 'Round 1: Collecting Independent Model Proposals...';
-  onProgress?.(session);
+  onProgress?.({ ...session, rounds: [...session.rounds] });
 
   const round1: CouncilRound = {
     roundNumber: 1,
     title: 'Initial Independent Proposals',
-    description: 'Each AI model analyzes the problem independently from its company principles and strengths.',
+    description: 'Each AI model analyzes the problem independently from its unique principles and strengths.',
     contributions: [],
   };
 
@@ -171,7 +213,7 @@ Be decisive, articulate, and clear.`;
         provider: member.provider,
         model: member.model,
         company: member.company,
-        content: `*(Unable to retrieve response: ${err.message || 'Error occurred'})*`,
+        content: `*(Unable to retrieve response from ${member.displayName}: ${err.message || 'Connection error'})*`,
       };
     }
   });
@@ -179,7 +221,7 @@ Be decisive, articulate, and clear.`;
   round1.contributions = await Promise.all(round1Promises);
   session.rounds.push(round1);
   session.currentStage = 'Round 2: Cross-Examination Debate & Rebuttals...';
-  onProgress?.(session);
+  onProgress?.({ ...session, rounds: [...session.rounds] });
 
   // -------------------------------------------------------------
   // ROUND 2: Cross-Examination Debate & Critique
@@ -197,7 +239,7 @@ Be decisive, articulate, and clear.`;
 
   const round2Promises = eligible.map(async ({ member, apiKey }) => {
     const systemPrompt = `You are representing ${member.company} (${member.displayName}) in the AI Council Debate.
-You have just read the proposals presented by your peer models from other AI labs.
+You have just read the proposals presented by your peer models.
 Your goal in this round is to debate rigorously:
 1. Identify any flaws, blindspots, or over-simplifications in your peers' arguments.
 2. Note where you agree or where their ideas complement yours.
@@ -228,7 +270,7 @@ Keep your critique sharp, respectful, and intellectually honest.`;
         provider: member.provider,
         model: member.model,
         company: member.company,
-        content: `*(Rebuttal skipped due to connection error: ${err.message || 'Error'})*`,
+        content: `*(Rebuttal skipped: ${err.message || 'Error'})*`,
       };
     }
   });
@@ -236,19 +278,20 @@ Keep your critique sharp, respectful, and intellectually honest.`;
   round2.contributions = await Promise.all(round2Promises);
   session.rounds.push(round2);
   session.currentStage = 'Synthesizing Council Consensus & Final Verdict...';
-  onProgress?.(session);
+  onProgress?.({ ...session, rounds: [...session.rounds] });
 
   // -------------------------------------------------------------
   // ROUND 3: Consensus & Final Verdict Synthesis
   // -------------------------------------------------------------
   const leadMember = eligible[0]; // Lead synthesizer
-  const fullDebateHistory = `### USER QUERY:\n${prompt}\n\n` +
+  const fullDebateHistory =
+    `### USER QUERY:\n${prompt}\n\n` +
     `### ROUND 1: INITIAL PROPOSALS:\n${round1.contributions.map((c) => `[${c.company}]:\n${c.content}`).join('\n\n')}\n\n` +
     `### ROUND 2: REBUTTALS & CRITIQUE:\n${round2.contributions.map((c) => `[${c.company}]:\n${c.content}`).join('\n\n')}`;
 
   const moderatorSystemPrompt = `You are the Presiding Moderator of the AI Council representing ${eligible.map((e) => e.member.company).join(', ')}.
 Your duty is to synthesize the complete debate into an authoritative, unified consensus verdict.
-Output your synthesis in STRICT JSON format matching this schema:
+Output your synthesis in STRICT JSON format:
 {
   "verdict": "<Short 1-sentence bottom-line verdict>",
   "synthesis": "<2-3 comprehensive paragraphs explaining the synthesized solution combining the best ideas of all models>",
@@ -274,17 +317,18 @@ Output your synthesis in STRICT JSON format matching this schema:
     try {
       parsed = JSON.parse(rawSynthesis);
     } catch {
-      const match = rawSynthesis.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
-      if (match) {
+      const codeMatch = rawSynthesis.match(/```(?:json)?\s*([\s\S]*?)\s*```/i);
+      if (codeMatch) {
         try {
-          parsed = JSON.parse(match[1]);
+          parsed = JSON.parse(codeMatch[1].trim());
         } catch {}
       }
       if (!parsed) {
-        const braceMatch = rawSynthesis.match(/\{[\s\S]*\}/);
-        if (braceMatch) {
+        const firstBrace = rawSynthesis.indexOf('{');
+        const lastBrace = rawSynthesis.lastIndexOf('}');
+        if (firstBrace !== -1 && lastBrace > firstBrace) {
           try {
-            parsed = JSON.parse(braceMatch[0]);
+            parsed = JSON.parse(rawSynthesis.substring(firstBrace, lastBrace + 1));
           } catch {}
         }
       }
@@ -310,8 +354,8 @@ Output your synthesis in STRICT JSON format matching this schema:
   } catch (synthErr: any) {
     session.consensus = {
       verdict: 'Debate Completed',
-      synthesis: 'The council completed 2 rounds of multi-model debate. Review the contributions from each model in the tabs above.',
-      agreements: ['Debate concluded successfully'],
+      synthesis: 'The council completed multi-model debate. Review the contributions from each model in the tabs above.',
+      agreements: ['Debate concluded across council members'],
       disagreements: [],
       actionItems: [],
     };
@@ -320,7 +364,7 @@ Output your synthesis in STRICT JSON format matching this schema:
   session.status = 'done';
   session.currentStage = 'Consensus Reached';
   session.completedAt = Date.now();
-  onProgress?.(session);
+  onProgress?.({ ...session, rounds: [...session.rounds] });
 
   return session;
 }

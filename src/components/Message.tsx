@@ -77,6 +77,15 @@ export const Message: React.FC<MessageProps> = ({
     );
   }
 
+  // AI Council Chamber Message (Dedicated card)
+  if (message.council) {
+    return (
+      <div className="my-4 max-w-full">
+        <AICouncilCard council={message.council} onToast={onToast} />
+      </div>
+    );
+  }
+
   // Error Card
   if (message.error) {
     const isKeyError =
@@ -288,11 +297,6 @@ export const Message: React.FC<MessageProps> = ({
             </a>
           ))}
         </div>
-      )}
-
-      {/* AI Council Debate Session */}
-      {message.council && (
-        <AICouncilCard council={message.council} onToast={onToast} />
       )}
 
       {/* LLM as a Judge Evaluation */}

@@ -54,15 +54,26 @@ const PROVIDER_THEME: Record<
 };
 
 export const AICouncilCard: React.FC<AICouncilCardProps> = ({ council, onToast }) => {
-  const [activeTab, setActiveTab] = useState<'consensus' | 'round2' | 'round1'>('consensus');
+  const round1 = council.rounds.find((r) => r.roundNumber === 1);
+  const round2 = council.rounds.find((r) => r.roundNumber === 2);
+  const consensus = council.consensus;
+
+  // Start on available tab: consensus if done, round1 if round1 ready, else consensus
+  const [activeTab, setActiveTab] = useState<'consensus' | 'round2' | 'round1'>(
+    consensus ? 'consensus' : round1 && round1.contributions.length > 0 ? 'round1' : 'consensus'
+  );
   const [selectedModelIdx, setSelectedModelIdx] = useState<number>(0);
   const [copied, setCopied] = useState(false);
 
+  // Switch to consensus automatically when consensus is finalized
+  React.useEffect(() => {
+    if (consensus) {
+      setActiveTab('consensus');
+    }
+  }, [Boolean(consensus)]);
+
   const isDebating = council.status === 'debating';
   const participants = council.participants || [];
-  const consensus = council.consensus;
-  const round1 = council.rounds.find((r) => r.roundNumber === 1);
-  const round2 = council.rounds.find((r) => r.roundNumber === 2);
 
   const handleCopyTranscript = () => {
     let transcript = `# AI COUNCIL DEBATE TRANSCRIPT\n\n`;
@@ -300,12 +311,31 @@ export const AICouncilCard: React.FC<AICouncilCardProps> = ({ council, onToast }
                 </div>
               )}
             </>
+          ) : council.status === 'failed' ? (
+            <div className="py-8 px-4 rounded-xl bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900 text-center space-y-2">
+              <AlertTriangle className="w-8 h-8 text-rose-600 dark:text-rose-400 mx-auto" />
+              <h4 className="text-sm font-bold text-rose-900 dark:text-rose-200">
+                Council Debate Could Not Be Completed
+              </h4>
+              <p className="text-xs text-rose-700 dark:text-rose-300 max-w-md mx-auto leading-relaxed">
+                {council.error || 'Please add your API key (xAI Grok or Google Gemini) in Settings to convene the AI Council.'}
+              </p>
+            </div>
           ) : (
             <div className="py-8 text-center space-y-2">
               <Loader2 className="w-6 h-6 animate-spin text-indigo-600 mx-auto" />
-              <p className="text-xs text-slate-500 font-medium">
+              <p className="text-xs text-slate-600 dark:text-slate-300 font-medium">
                 {council.currentStage || 'Debate is actively underway in the Council Chamber...'}
               </p>
+              {round1 && round1.contributions.length > 0 && (
+                <button
+                  onClick={() => setActiveTab('round1')}
+                  type="button"
+                  className="mt-2 text-xs text-indigo-600 dark:text-indigo-400 hover:underline font-semibold cursor-pointer block mx-auto"
+                >
+                  View {round1.contributions.length} initial proposals while debate continues &rarr;
+                </button>
+              )}
             </div>
           )}
         </div>

@@ -432,14 +432,14 @@ export const InputBar: React.FC<InputBarProps> = ({
               }`}
               title={
                 autoJudge
-                  ? 'Auto-Judge Active: Every answer is independently evaluated by a peer model'
-                  : 'LLM Judge: Automatically evaluate accuracy of responses with another model'
+                  ? 'Auto-Judge Active: Every answer is independently evaluated by xAI Grok'
+                  : 'Grok Judge: Automatically evaluate accuracy of responses using xAI Grok'
               }
-              aria-label="Toggle LLM as a Judge"
+              aria-label="Toggle Grok LLM Judge"
             >
               <Scale className="w-3.5 h-3.5 shrink-0" />
               <span className="text-xs">
-                {autoJudge ? 'Judge: ON' : 'Judge'}
+                {autoJudge ? 'Grok Judge: ON' : 'Grok Judge'}
               </span>
               {autoJudge && (
                 <span className="w-1.5 h-1.5 rounded-full bg-purple-500 animate-pulse" />

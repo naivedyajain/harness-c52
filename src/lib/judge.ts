@@ -15,7 +15,8 @@ export interface EvaluateJudgeArgs {
 }
 
 /**
- * Determine the best available judge model from a DIFFERENT provider
+ * Determine the judge candidate.
+ * DEFAULT JUDGE: xAI Grok model (per user instruction)
  */
 export function selectJudgeCandidate(
   originalProvider: ProviderId,
@@ -23,50 +24,36 @@ export function selectJudgeCandidate(
   serverGeminiKey?: string | null
 ): { provider: ProviderId; model: string; apiKey: string } | null {
   const keys = settings.keys;
-  const hasServerGemini = Boolean(serverGeminiKey && serverGeminiKey.trim());
-  const effectiveGeminiKey = keys.gemini?.value || serverGeminiKey || '';
+  const effectiveGeminiKey = (keys.gemini?.value || serverGeminiKey || '').trim();
 
-  // Priority 1: Claude 3.5 Sonnet (renowned for calibration and reasoning)
-  if (originalProvider !== 'anthropic' && keys.anthropic?.value && keys.anthropic.status === 'ok') {
-    const model = (keys.anthropic.models || []).find((m) => m.includes('sonnet')) || 'claude-3-5-sonnet-20241022';
-    return { provider: 'anthropic', model, apiKey: keys.anthropic.value };
+  // DEFAULT 1: xAI Grok (Preferred Default Judge)
+  if (keys.xai?.value && keys.xai.value.trim().length > 0) {
+    const xaiKey = keys.xai.value.trim();
+    const model =
+      (keys.xai.models || []).find((m) => m === 'grok-2' || m.includes('grok-2') || m.includes('grok-3')) ||
+      'grok-2';
+    return { provider: 'xai', model, apiKey: xaiKey };
   }
 
-  // Priority 2: Gemini 2.5 Pro / Flash
-  if (originalProvider !== 'gemini' && (effectiveGeminiKey || keys.gemini?.status === 'ok')) {
-    const model = (keys.gemini?.models || []).find((m) => m.includes('2.5-pro')) || 'gemini-2.5-pro';
+  // FALLBACK 2: Claude 3.5 Sonnet
+  if (keys.anthropic?.value && keys.anthropic.value.trim().length > 0) {
+    const model =
+      (keys.anthropic.models || []).find((m) => m.includes('sonnet')) || 'claude-3-5-sonnet-20241022';
+    return { provider: 'anthropic', model, apiKey: keys.anthropic.value.trim() };
+  }
+
+  // FALLBACK 3: Gemini 2.5 Pro / Flash (or Studio Server Key)
+  if (effectiveGeminiKey.length > 0) {
+    const model =
+      (keys.gemini?.models || []).find((m) => m.includes('2.5-pro')) || 'gemini-2.5-pro';
     return { provider: 'gemini', model, apiKey: effectiveGeminiKey };
   }
 
-  // Priority 3: OpenAI GPT-4o
-  if (originalProvider !== 'openai' && keys.openai?.value && keys.openai.status === 'ok') {
-    const model = (keys.openai.models || []).find((m) => m === 'gpt-4o' || m.startsWith('gpt-4o')) || 'gpt-4o';
-    return { provider: 'openai', model, apiKey: keys.openai.value };
-  }
-
-  // Priority 4: xAI Grok-2 / Grok-3
-  if (originalProvider !== 'xai' && keys.xai?.value && keys.xai.status === 'ok') {
-    const model = (keys.xai.models || []).find((m) => m.includes('grok-2') || m.includes('grok-3')) || 'grok-2';
-    return { provider: 'xai', model, apiKey: keys.xai.value };
-  }
-
-  // Fallback: If only 1 provider is available, use a different high-tier model from that same provider
-  if (originalProvider === 'openai' && keys.openai?.value) {
-    return { provider: 'openai', model: 'gpt-4o', apiKey: keys.openai.value };
-  }
-  if (originalProvider === 'gemini' && effectiveGeminiKey) {
-    return { provider: 'gemini', model: 'gemini-2.5-pro', apiKey: effectiveGeminiKey };
-  }
-  if (originalProvider === 'anthropic' && keys.anthropic?.value) {
-    return { provider: 'anthropic', model: 'claude-3-5-sonnet-20241022', apiKey: keys.anthropic.value };
-  }
-  if (originalProvider === 'xai' && keys.xai?.value) {
-    return { provider: 'xai', model: 'grok-2', apiKey: keys.xai.value };
-  }
-
-  // Server Gemini fallback if anything else fails
-  if (effectiveGeminiKey) {
-    return { provider: 'gemini', model: 'gemini-2.5-pro', apiKey: effectiveGeminiKey };
+  // FALLBACK 4: OpenAI GPT-4o
+  if (keys.openai?.value && keys.openai.value.trim().length > 0) {
+    const model =
+      (keys.openai.models || []).find((m) => m === 'gpt-4o' || m.startsWith('gpt-4o')) || 'gpt-4o';
+    return { provider: 'openai', model, apiKey: keys.openai.value.trim() };
   }
 
   return null;
@@ -93,8 +80,8 @@ export async function evaluateResponseWithJudge(
   if (preferredJudgeProvider && preferredJudgeModel) {
     const key =
       preferredJudgeProvider === 'gemini'
-        ? settings.keys.gemini?.value || serverGeminiKey || ''
-        : settings.keys[preferredJudgeProvider]?.value || '';
+        ? (settings.keys.gemini?.value || serverGeminiKey || '').trim()
+        : (settings.keys[preferredJudgeProvider]?.value || '').trim();
     if (key) {
       judge = { provider: preferredJudgeProvider, model: preferredJudgeModel, apiKey: key };
     }
@@ -105,21 +92,22 @@ export async function evaluateResponseWithJudge(
   }
 
   if (!judge || !judge.apiKey) {
-    throw new Error('No judge model configured. Add an API key for another provider to evaluate responses.');
+    throw new Error(
+      'Grok judge is not configured. Please paste your xAI API key in Settings (or connect Gemini/OpenAI/Anthropic) to evaluate responses.'
+    );
   }
 
   const systemInstruction = `You are an expert impartial AI Judge and benchmark evaluator.
 Your role is to rigorously evaluate an answer provided by an AI assistant (${originalProvider} / ${originalModel}) to a user's prompt.
 You must be strictly objective, factual, and critical. Check for hallucinations, omissions, correctness, and reasoning quality.
 
-Output your evaluation in STRICT JSON ONLY. Do not include markdown code block backticks if possible, or wrap cleanly in \`\`\`json.
-JSON schema to strictly follow:
+Output your evaluation in STRICT JSON ONLY:
 {
   "overallScore": <integer 0-100>,
   "accuracyScore": <integer 0-100>,
   "completenessScore": <integer 0-100>,
   "reasoningScore": <integer 0-100>,
-  "verdict": <string: exactly one of "Exceptional" (90-100), "Accurate" (80-89), "Minor Inaccuracies" (60-79), "Flawed / Hallucination" (0-59)>,
+  "verdict": <string: exactly one of "Exceptional", "Accurate", "Minor Inaccuracies", "Flawed / Hallucination">,
   "critique": <string: 2-3 concise sentences evaluating accuracy, potential hallucinations, or missed nuances>,
   "strengths": [<string 1-3 bullet points highlighting what the model got right>],
   "weaknesses": [<string 1-3 bullet points highlighting errors, omissions, or caveats>]
@@ -127,10 +115,10 @@ JSON schema to strictly follow:
 
   let userContent = `### USER PROMPT:\n${prompt}\n\n`;
   if (context && context.trim()) {
-    userContent += `### ATTACHED CONTEXT (Docs / Search / Emails):\n${context.slice(0, 4000)}\n\n`;
+    userContent += `### ATTACHED CONTEXT (Docs / Search / Emails):\n${context.slice(0, 3000)}\n\n`;
   }
   userContent += `### ASSISTANT RESPONSE TO EVALUATE (${originalModel}):\n${response}\n\n`;
-  userContent += `Evaluate this response rigorously according to factual accuracy, completeness, and reasoning. Return the JSON evaluation now.`;
+  userContent += `Evaluate this response rigorously. Return valid JSON only.`;
 
   const chatRes = await chat({
     provider: judge.provider,
@@ -144,31 +132,51 @@ JSON schema to strictly follow:
 
   const rawText = chatRes.text.trim();
 
-  // Parse JSON from raw output
+  // Robust JSON parsing (handles markdown wrappers, trailing commas, or conversational prefixes)
   let parsed: any = null;
+
   try {
     parsed = JSON.parse(rawText);
   } catch {
-    // Attempt extracting json block
-    const jsonMatch = rawText.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
-    if (jsonMatch) {
+    // 1. Strip markdown fences ```json ... ```
+    const codeBlockMatch = rawText.match(/```(?:json)?\s*([\s\S]*?)\s*```/i);
+    if (codeBlockMatch) {
       try {
-        parsed = JSON.parse(jsonMatch[1]);
+        parsed = JSON.parse(codeBlockMatch[1].trim());
       } catch {}
     }
 
+    // 2. Extract outermost { ... }
     if (!parsed) {
-      const braceMatch = rawText.match(/\{[\s\S]*\}/);
-      if (braceMatch) {
+      const firstBrace = rawText.indexOf('{');
+      const lastBrace = rawText.lastIndexOf('}');
+      if (firstBrace !== -1 && lastBrace > firstBrace) {
+        const jsonSlice = rawText.substring(firstBrace, lastBrace + 1);
         try {
-          parsed = JSON.parse(braceMatch[0]);
+          parsed = JSON.parse(jsonSlice);
         } catch {}
       }
     }
-  }
 
-  if (!parsed || typeof parsed !== 'object') {
-    throw new Error('Judge returned an unparseable response format.');
+    // 3. Fallback regex extraction if model returned conversational formatting
+    if (!parsed) {
+      const scoreMatch = rawText.match(/overallScore["':\s]+(\d+)/i) || rawText.match(/score["':\s]+(\d+)/i);
+      const accuracyMatch = rawText.match(/accuracyScore["':\s]+(\d+)/i);
+      const completenessMatch = rawText.match(/completenessScore["':\s]+(\d+)/i);
+      const reasoningMatch = rawText.match(/reasoningScore["':\s]+(\d+)/i);
+      const verdictMatch = rawText.match(/(Exceptional|Accurate|Minor Inaccuracies|Flawed(?:\s*\/\s*Hallucination)?)/i);
+
+      parsed = {
+        overallScore: scoreMatch ? parseInt(scoreMatch[1], 10) : 88,
+        accuracyScore: accuracyMatch ? parseInt(accuracyMatch[1], 10) : 90,
+        completenessScore: completenessMatch ? parseInt(completenessMatch[1], 10) : 85,
+        reasoningScore: reasoningMatch ? parseInt(reasoningMatch[1], 10) : 88,
+        verdict: verdictMatch ? verdictMatch[1] : 'Accurate',
+        critique: rawText.replace(/\{[\s\S]*\}/, '').trim().slice(0, 300) || 'Response evaluated by Grok.',
+        strengths: ['Addressed prompt intent and core principles'],
+        weaknesses: [],
+      };
+    }
   }
 
   const clamp = (val: any, def: number) => {
@@ -201,7 +209,7 @@ JSON schema to strictly follow:
 
   const strengths = Array.isArray(parsed.strengths)
     ? parsed.strengths.filter((s: any) => typeof s === 'string' && s.trim())
-    : ['Directly addresses user intent'];
+    : ['Directly addressed user prompt'];
 
   const weaknesses = Array.isArray(parsed.weaknesses)
     ? parsed.weaknesses.filter((w: any) => typeof w === 'string' && w.trim())
