@@ -98,12 +98,14 @@ export async function listModels(provider: ProviderId, apiKey: string): Promise<
 export const CURATED_MODELS: Record<ProviderId, string[]> = {
   openai: ['gpt-4o-mini', 'gpt-4o', 'o3-mini', 'o1', 'gpt-4-turbo'],
   gemini: [
+    'gemini-3.8-flash',
+    'gemini-3-pro',
+    'gemini-3-flash',
     'gemini-2.5-flash',
     'gemini-2.5-pro',
     'gemini-2.0-flash',
     'gemini-1.5-flash',
     'gemini-1.5-pro',
-    'gemini-2.0-flash-thinking-exp',
   ],
   anthropic: [
     'claude-3-5-haiku',
@@ -111,6 +113,6 @@ export const CURATED_MODELS: Record<ProviderId, string[]> = {
     'claude-3-7-sonnet',
     'claude-3-opus-20240229',
   ],
-  xai: ['grok-2-mini', 'grok-2', 'grok-3', 'grok-beta'],
+  xai: ['grok-4', 'grok-4-mini', 'grok-3', 'grok-2', 'grok-2-mini', 'grok-beta'],
 };
 

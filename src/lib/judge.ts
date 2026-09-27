@@ -26,27 +26,30 @@ export function selectJudgeCandidate(
   const keys = settings.keys;
   const effectiveGeminiKey = (keys.gemini?.value || serverGeminiKey || '').trim();
 
-  // DEFAULT 1: xAI Grok (Preferred Default Judge)
+  // DEFAULT 1: xAI Grok (Preferred Default Judge: Grok 4 Series)
   if (keys.xai?.value && keys.xai.value.trim().length > 0) {
     const xaiKey = keys.xai.value.trim();
     const model =
-      (keys.xai.models || []).find((m) => m === 'grok-2' || m.includes('grok-2') || m.includes('grok-3')) ||
-      'grok-2';
+      (keys.xai.models || []).find((m) => m === 'grok-4' || m.includes('grok-4')) ||
+      (keys.xai.models || []).find((m) => m === 'grok-3' || m.includes('grok-2')) ||
+      'grok-4';
     return { provider: 'xai', model, apiKey: xaiKey };
   }
 
-  // FALLBACK 2: Claude 3.5 Sonnet
+  // FALLBACK 2: Gemini 3 Series / 2.5 Pro
+  if (effectiveGeminiKey.length > 0) {
+    const model =
+      (keys.gemini?.models || []).find((m) => m.includes('3.8') || m.includes('gemini-3')) ||
+      (keys.gemini?.models || []).find((m) => m.includes('2.5-pro')) ||
+      'gemini-3.8-flash';
+    return { provider: 'gemini', model, apiKey: effectiveGeminiKey };
+  }
+
+  // FALLBACK 3: Claude 3.5 Sonnet
   if (keys.anthropic?.value && keys.anthropic.value.trim().length > 0) {
     const model =
       (keys.anthropic.models || []).find((m) => m.includes('sonnet')) || 'claude-3-5-sonnet-20241022';
     return { provider: 'anthropic', model, apiKey: keys.anthropic.value.trim() };
-  }
-
-  // FALLBACK 3: Gemini 2.5 Pro / Flash (or Studio Server Key)
-  if (effectiveGeminiKey.length > 0) {
-    const model =
-      (keys.gemini?.models || []).find((m) => m.includes('2.5-pro')) || 'gemini-2.5-pro';
-    return { provider: 'gemini', model, apiKey: effectiveGeminiKey };
   }
 
   // FALLBACK 4: OpenAI GPT-4o

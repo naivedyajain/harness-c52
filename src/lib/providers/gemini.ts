@@ -32,18 +32,40 @@ export async function chatGemini(args: {
     };
   }
 
-  const data = await fetchJson<any>(
-    url,
-    {
-      method: 'POST',
-      headers: {
-        'x-goog-api-key': apiKey.trim(),
-        'Content-Type': 'application/json',
+  let data: any;
+  try {
+    data = await fetchJson<any>(
+      url,
+      {
+        method: 'POST',
+        headers: {
+          'x-goog-api-key': apiKey.trim(),
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload),
       },
-      body: JSON.stringify(payload),
-    },
-    { timeoutMs: 120000, provider: 'Google Gemini', signal }
-  );
+      { timeoutMs: 120000, provider: 'Google Gemini', signal }
+    );
+  } catch (err: any) {
+    if (cleanModel.includes('gemini-3') && (err?.status === 404 || err?.message?.includes('not found'))) {
+      const fallbackModel = cleanModel.includes('pro') ? 'gemini-2.5-pro' : 'gemini-2.5-flash';
+      const fallbackUrl = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(fallbackModel)}:generateContent`;
+      data = await fetchJson<any>(
+        fallbackUrl,
+        {
+          method: 'POST',
+          headers: {
+            'x-goog-api-key': apiKey.trim(),
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(payload),
+        },
+        { timeoutMs: 120000, provider: 'Google Gemini', signal }
+      );
+    } else {
+      throw err;
+    }
+  }
 
   if (data.promptFeedback && data.promptFeedback.blockReason) {
     throw new AppError('blocked', data.promptFeedback.blockReason);

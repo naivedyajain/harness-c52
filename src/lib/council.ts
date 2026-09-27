@@ -11,8 +11,8 @@ export interface CouncilSessionArgs {
 }
 
 const DEFAULT_MODELS: Record<ProviderId, string> = {
-  xai: 'grok-2',
-  gemini: 'gemini-2.5-pro',
+  xai: 'grok-4',
+  gemini: 'gemini-3.8-flash',
   openai: 'gpt-4o',
   anthropic: 'claude-3-5-sonnet-20241022',
 };
@@ -31,31 +31,34 @@ export function getEligibleCouncilMembers(
   const openaiKey = (keys.openai?.value || '').trim();
   const anthropicKey = (keys.anthropic?.value || '').trim();
 
-  // 1. xAI Grok (Frontier & critical reasoning)
+  // 1. xAI Grok (Grok 4 series)
   if (xaiKey.length > 0) {
     const model =
-      (keys.xai?.models || []).find((m) => m === 'grok-2' || m.includes('grok-2') || m.includes('grok-3')) ||
+      (keys.xai?.models || []).find((m) => m === 'grok-4' || m.includes('grok-4')) ||
+      (keys.xai?.models || []).find((m) => m.includes('grok-3') || m.includes('grok-2')) ||
       DEFAULT_MODELS.xai;
     list.push({
       member: {
         provider: 'xai',
         model,
-        displayName: 'Grok 2',
+        displayName: model.includes('4') ? 'Grok 4' : 'Grok',
         company: 'xAI',
       },
       apiKey: xaiKey,
     });
   }
 
-  // 2. Google DeepMind Gemini
+  // 2. Google DeepMind Gemini (Gemini 3 series)
   if (effectiveGeminiKey.length > 0) {
     const model =
-      (keys.gemini?.models || []).find((m) => m.includes('2.5-pro')) || DEFAULT_MODELS.gemini;
+      (keys.gemini?.models || []).find((m) => m.includes('3.8') || m.includes('gemini-3')) ||
+      (keys.gemini?.models || []).find((m) => m.includes('2.5-pro') || m.includes('2.5-flash')) ||
+      DEFAULT_MODELS.gemini;
     list.push({
       member: {
         provider: 'gemini',
         model,
-        displayName: 'Gemini 2.5 Pro',
+        displayName: model.includes('3') ? 'Gemini 3.8 Flash' : 'Gemini 2.5 Pro',
         company: 'Google DeepMind',
       },
       apiKey: effectiveGeminiKey,
@@ -94,54 +97,56 @@ export function getEligibleCouncilMembers(
     });
   }
 
-  // If user only has xAI configured: supplement with distinct Grok architectures
-  if (list.length === 1 && xaiKey.length > 0) {
+  // If user has both xAI Grok and Google Gemini (primary council setup), add a 3rd member for a 3-way debate:
+  if (list.length === 2 && xaiKey.length > 0 && effectiveGeminiKey.length > 0) {
+    const miniModel =
+      (keys.xai?.models || []).find((m) => m.includes('mini')) || 'grok-4-mini';
     list.push({
       member: {
         provider: 'xai',
-        model: 'grok-2-mini',
-        displayName: 'Grok 2 Mini',
-        company: 'xAI (Concise & Fast)',
+        model: miniModel,
+        displayName: 'Grok 4 Mini',
+        company: 'xAI (Fast & Precise)',
+      },
+      apiKey: xaiKey,
+    });
+  } else if (list.length === 1 && xaiKey.length > 0) {
+    // If user only has xAI configured: supplement with Grok 4 architectures
+    list.push({
+      member: {
+        provider: 'xai',
+        model: (keys.xai?.models || []).find((m) => m.includes('mini')) || 'grok-4-mini',
+        displayName: 'Grok 4 Mini',
+        company: 'xAI (Precision & Speed)',
       },
       apiKey: xaiKey,
     });
     list.push({
       member: {
         provider: 'xai',
-        model: 'grok-beta',
-        displayName: 'Grok Adversarial',
+        model: 'grok-4',
+        displayName: 'Grok 4 Adversarial',
         company: 'xAI (Critical Stance)',
       },
       apiKey: xaiKey,
     });
   } else if (list.length === 1 && effectiveGeminiKey.length > 0) {
-    // If only Gemini is configured
+    // If only Gemini is configured: supplement with Gemini 3 architectures
     list.push({
       member: {
         provider: 'gemini',
-        model: 'gemini-2.5-flash',
-        displayName: 'Gemini 2.5 Flash',
+        model: 'gemini-3-pro',
+        displayName: 'Gemini 3 Pro',
+        company: 'Google (Deep Reasoning)',
+      },
+      apiKey: effectiveGeminiKey,
+    });
+    list.push({
+      member: {
+        provider: 'gemini',
+        model: 'gemini-3-flash',
+        displayName: 'Gemini 3 Flash',
         company: 'Google (Speed & Directness)',
-      },
-      apiKey: effectiveGeminiKey,
-    });
-    list.push({
-      member: {
-        provider: 'gemini',
-        model: 'gemini-1.5-pro',
-        displayName: 'Gemini Architecture',
-        company: 'Google (Analytical)',
-      },
-      apiKey: effectiveGeminiKey,
-    });
-  } else if (list.length === 2 && effectiveGeminiKey.length > 0) {
-    // If 2 models (e.g. Grok + Gemini), add Flash for a 3rd distinct voice
-    list.push({
-      member: {
-        provider: 'gemini',
-        model: 'gemini-2.5-flash',
-        displayName: 'Gemini 2.5 Flash',
-        company: 'Google (Pragmatic Voice)',
       },
       apiKey: effectiveGeminiKey,
     });

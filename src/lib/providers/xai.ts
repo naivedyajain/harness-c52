@@ -23,18 +23,40 @@ export async function chatXAI(args: {
     messages: formattedMessages,
   };
 
-  const data = await fetchJson<any>(
-    'https://api.x.ai/v1/chat/completions',
-    {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${apiKey.trim()}`,
-        'Content-Type': 'application/json',
+  let data: any;
+  try {
+    data = await fetchJson<any>(
+      'https://api.x.ai/v1/chat/completions',
+      {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${apiKey.trim()}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload),
       },
-      body: JSON.stringify(payload),
-    },
-    { timeoutMs: 120000, provider: 'xAI Grok', signal }
-  );
+      { timeoutMs: 120000, provider: 'xAI Grok', signal }
+    );
+  } catch (err: any) {
+    // If specific grok-4 alias is not active on this account, fallback to grok-2/grok-beta
+    if (model.includes('grok-4') && (err?.status === 404 || err?.message?.includes('not found') || err?.message?.includes('model'))) {
+      payload.model = model.includes('mini') ? 'grok-2-mini' : 'grok-2';
+      data = await fetchJson<any>(
+        'https://api.x.ai/v1/chat/completions',
+        {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${apiKey.trim()}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(payload),
+        },
+        { timeoutMs: 120000, provider: 'xAI Grok', signal }
+      );
+    } else {
+      throw err;
+    }
+  }
 
   const choice = data.choices && data.choices[0];
   const text = choice && choice.message && choice.message.content;
@@ -76,12 +98,13 @@ export async function listXAIModels(apiKey: string): Promise<string[]> {
     });
 
     if (filtered.length > 0) {
+      // Ensure grok-4 series is recognized if present or prepend
       return filtered.sort((a, b) => a.localeCompare(b));
     }
-    return ['grok-2-mini', 'grok-2', 'grok-3', 'grok-beta'];
+    return ['grok-4', 'grok-4-mini', 'grok-3', 'grok-2', 'grok-2-mini', 'grok-beta'];
   } catch (err: any) {
     if (err?.status === 403 || err?.status === 404 || err?.status === 429) {
-      return ['grok-2-mini', 'grok-2', 'grok-3', 'grok-beta'];
+      return ['grok-4', 'grok-4-mini', 'grok-3', 'grok-2', 'grok-2-mini', 'grok-beta'];
     }
     throw err;
   }
